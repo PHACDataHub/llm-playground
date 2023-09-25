@@ -1,0 +1,43 @@
+<button id="show-files" class="btn btn-outline-dark position-absolute end-0 m-3" type="button">
+  <i class="bi bi-file-earmark-arrow-up"></i>
+</button>
+<div id="right-sidebar" tabindex="-1" class="border-start p-3">
+  <div class="offcanvas-header mb-2">
+    <h5 class="offcanvas-title" id="offcanvasExampleLabel">Upload files to chat</h5>
+    <button type="button" class="btn-close" aria-label="Close" id="close-files"></button>
+  </div>
+    <div class="offcanvas-body" style="overflow-x:hidden;">
+    <form hx-post="{{ url('upload_chat_file', chat.id) }}"
+          hx-indicator="#upload-spinner"
+          id="chat-file-form"
+          enctype="multipart/form-data"
+          hx-swap="afterbegin"
+          hx-target="#chat-documents"
+          >
+      {% csrf_token %}
+      <div class="row">
+        <div class="col">{{ upload_form.file }}</div>
+      </div>
+      <div class="row d-none">
+        <div class="col">
+          <button id="chat-file-submit" class="btn btn-primary" type="submit">Upload</button>
+        </div>
+        </div>
+          <span id="upload-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true" hx-target="#upload-spinner"></span>
+    </form>
+    </div>
+    <div id="chat-documents">
+    </div>
+</div>
+<script>
+    document.getElementById("show-files").addEventListener("click", function(){
+        document.body.classList.add("right-sidebar-open");
+    });
+    document.getElementById("close-files").addEventListener("click", function(){
+        document.body.classList.remove("right-sidebar-open");
+    });
+    document.getElementById("id_file").onchange = function() {
+        // Post the chat-file-form
+        document.getElementById("chat-file-submit").click();
+    };
+</script>

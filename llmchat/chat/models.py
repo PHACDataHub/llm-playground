@@ -42,6 +42,22 @@ def user_directory_path(instance, filename):
     return "user_{0}/{1}".format(instance.user.username.split('@')[0], filename)
 
 
+class ChatFile(models.Model):
+    """
+    A file that is uploaded to GCP storage, within a specific chat
+    """
+
+    chat = models.ForeignKey(Chat, on_delete=models.CASCADE, null=False)
+    file = models.FileField(null=True, upload_to=user_directory_path)
+    text = models.TextField(blank=True, default="")
+    uploaded_at = models.DateTimeField(blank=True, null=True)
+    num_words = models.IntegerField(default=0)
+
+    @property
+    def user(self):
+        return self.chat.user
+
+
 class Document(models.Model):
     """
     Metadata for a document uploaded to GCP storage

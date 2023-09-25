@@ -10,7 +10,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
 
 from chat.forms import MessageForm, UploadForm, QueryForm, QAForm, SettingsForm
-from chat.models import Message, User, Chat, DocumentChunk, Document, UserSettings
+from chat.models import Message, User, Chat, DocumentChunk, Document, UserSettings, ChatFile
 from chat.llm_utils.vertex import (
     gcp_embeddings,
     get_docs_chunks_by_embedding,
@@ -112,6 +112,7 @@ class ChatView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context["active_tab"] = "chat"
         context["form"] = MessageForm()
+        context["upload_form"] = UploadForm()
         try:
             user_settings = self.request.user.settings
         except ObjectDoesNotExist:
@@ -416,3 +417,32 @@ def qa_embeddings(request):
             + response[response.index("\nSOURCES") + 9 :].replace("\n", "<br>")
         )
     return HttpResponse(response)
+
+
+def upload_chat_file(request, chat_id):
+    form = UploadForm(request.POST, request.FILES)
+    if form.is_valid():
+        uploaded_file = request.FILES["file"]
+        file_bytes = uploaded_file.file
+        temp_file = NamedTemporaryFile(delete=False)
+        temp_file.write(file_bytes.read())
+        temp_file.seek(0)
+        if uploaded_file.name.endswith(".pdf"):
+            loader = PyPDFLoader(temp_file.name)
+        else:
+            loader = TextLoader(temp_file.name, encoding="utf8")
+        docs = loader.load()
+        temp_file.close()
+        os.unlink(temp_file.name)
+        text = "\n\n".join([doc.page_content for doc in docs])
+        instance = ChatFile(
+            chat_id=chat_id,
+            file=uploaded_file,
+            uploaded_at=timezone.now(),
+            text=text,
+            num_words=len(text.split()),
+        )
+        instance.save()
+        return HttpResponse(status=200, content=uploaded_file.name)
+    else:
+        return HttpResponse(status=400, content="error")

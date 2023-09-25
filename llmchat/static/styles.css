@@ -1032,9 +1032,40 @@ body.highlight-invalid div.phac_aspc_form_autocomplete:has(input:invalid) {
   opacity: 1;
 }
 
+#right-sidebar {
+  width: 320px;
+  right: 0;
+  height: calc(100vh - 4rem);
+  top: 4rem;
+  background: var(--bs-light);
+  z-index: 20;
+  display: none;
+  position: fixed;
+}
+
+.right-sidebar-open #right-sidebar {
+  display: block;
+}
+
+.right-sidebar-open #chat-container {
+  width: calc(100% - 640px);
+  left: 320px;
+}
+
+form#dropzone-basic {
+  border-style: dashed;
+  border-radius: 0.75rem;
+  min-height: 0;
+  background: none;
+}
+
+#show-files {
+  z-index: 10;
+}
+
 #chat-container {
   position: fixed;
-  width: calc(100% - 320px);
+  width: calc(100% - 377px);
   left: 320px;
 }
 

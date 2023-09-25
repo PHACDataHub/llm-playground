@@ -3,6 +3,7 @@
   {% set messages = chat.message_set.all().order_by('timestamp') %}
   <div id="chat-outer">
     {% include 'fragments/chat_sidebar.jinja' %}
+    {% include 'fragments/files_sidebar.jinja' %}
     <div id="chat-container">
       <div class="container">
         <div id="messages-container" class="mx-1 pt-3">
