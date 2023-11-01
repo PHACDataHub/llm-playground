@@ -18,6 +18,9 @@ from urllib.parse import urlparse
 import environ
 from google.cloud import secretmanager
 
+#TODO: conditional on running locally or app engine
+CSRF_TRUSTED_ORIGINS = ["https://8080-cs-239135082785-default.cs-us-east1-vpcf.cloudshell.dev"]
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 print(BASE_DIR)
@@ -77,9 +80,11 @@ if APPENGINE_URL:
     if not urlparse(APPENGINE_URL).scheme:
         APPENGINE_URL = f"https://{APPENGINE_URL}"
 
-    ALLOWED_HOSTS = [urlparse(APPENGINE_URL).netloc]
+    # ALLOWED_HOSTS = [urlparse(APPENGINE_URL).netloc]
     CSRF_TRUSTED_ORIGINS = [APPENGINE_URL]
+    # ALLOWED_HOSTS.append("20230922t152553.phx-jchang.uc.r.appspot.com")
     SECURE_SSL_REDIRECT = True
+    ALLOWED_HOSTS = ["*"]
 else:
     ALLOWED_HOSTS = ["*"]
 # [END gaestd_py_django_csrf]

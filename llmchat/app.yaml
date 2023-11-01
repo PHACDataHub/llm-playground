@@ -22,7 +22,7 @@ instance_class: F4_1G
 
 env_variables:
   # This setting is used in settings.py to configure your ALLOWED_HOSTS
-  APPENGINE_URL: https://llm.phac.alpha.canada.ca
+  APPENGINE_URL: https://phx-jchang.uc.r.appspot.com
 
 handlers:
 # This configures Google App Engine to serve the files in the app's static
