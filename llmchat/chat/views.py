@@ -1,36 +1,29 @@
-from django.shortcuts import render, redirect
-from django.views.generic import TemplateView
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth import logout
-from django.http import HttpResponse
-from django.urls import reverse
-from django.utils import timezone
+import os
+from tempfile import NamedTemporaryFile
+
+import numpy as np
+from chat.forms import MessageForm, QAForm, QueryForm, SettingsForm, UploadForm
+from chat.llm_utils.vertex import (CHUNK_OVERLAP, CHUNK_SIZE, gcp_embeddings,
+                                   get_docs_chunks_by_embedding,
+                                   get_qa_response, summarize_chain, text_llm,
+                                   text_splitter)
+from chat.models import (Chat, ChatFile, Document, DocumentChunk, Message,
+                         User, UserSettings)
 from django.conf import settings
+from django.contrib.auth import logout
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
-
-from chat.forms import MessageForm, UploadForm, QueryForm, QAForm, SettingsForm
-from chat.models import Message, User, Chat, DocumentChunk, Document, UserSettings, ChatFile
-from chat.llm_utils.vertex import (
-    gcp_embeddings,
-    get_docs_chunks_by_embedding,
-    get_qa_response,
-    text_llm,
-    summarize_chain,
-    CHUNK_SIZE,
-    CHUNK_OVERLAP,
-    text_splitter,
-)
-
-from langchain.schema import HumanMessage, SystemMessage, AIMessage
+from django.http import HttpResponse
+from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.utils import timezone
+from django.views.generic import TemplateView
+from langchain.chat_models import ChatOpenAI
 from langchain.docstore.document import Document as LcDocument
-from langchain.chat_models import ChatVertexAI
-from langchain.llms import VertexAI
-from langchain.document_loaders import TextLoader, PyPDFLoader
-
-from tempfile import NamedTemporaryFile
-import os
-import numpy as np
+from langchain.document_loaders import PyPDFLoader, TextLoader
+from langchain.llms import OpenAI
+from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 
 class IndexView(LoginRequiredMixin, TemplateView):
@@ -44,53 +37,34 @@ def chat_response(request, chat_id):
         .prefetch_related("chat")
     )
     user_settings = request.user.settings
-    is_chat_model = "chat" in user_settings.model_name
-    if is_chat_model:
-        system_prompt = user_settings.system_prompt
-        if system_prompt is None:
-            system_prompt = settings.CHAT_SYSTEM_PROMPT
-        chat_messages = [
-            SystemMessage(
-                content=system_prompt,
-            )
-        ]
-        for i, message in enumerate(messages):
-            if message.is_bot:
-                chat_messages.append(AIMessage(content=message.message))
-            elif i > 0 and not messages[i - 1].is_bot:
-                chat_messages[-1].content += "\n" + message.message
-            else:
-                chat_messages.append(HumanMessage(content=message.message))
-    else:
-        # Only one prompt for non-chat models
-        chat_messages = messages.first().message
-    if not is_chat_model and len(messages) > 2:
-        bot_message = Message.objects.create(
-            message="Non-chat models only support one prompt. Please start a new chat or switch to a chat model.",
-            chat_id=chat_id,
-            is_bot=True,
+    system_prompt = user_settings.system_prompt
+    if system_prompt is None:
+        system_prompt = settings.CHAT_SYSTEM_PROMPT
+    chat_messages = [
+        SystemMessage(
+            content=system_prompt,
         )
-    else:
-        is_code_model = "code" in user_settings.model_name
-        llm_class = ChatVertexAI if is_chat_model else VertexAI
-        max_tokens = 2048 if is_code_model else 1024
-        max_tokens = min(max_tokens, user_settings.max_output_tokens)
-        llm = llm_class(
-            model_name=user_settings.model_name,
-            max_output_tokens=max_tokens,
-            temperature=user_settings.temperature,
-        )
-        bot_message = Message.objects.create(
-            message=llm(chat_messages).content if is_chat_model else llm(chat_messages),
-            chat_id=chat_id,
-            is_bot=True,
-        )
+    ]
+    for i, message in enumerate(messages):
+        if message.is_bot:
+            chat_messages.append(AIMessage(content=message.message))
+        elif i > 0 and not messages[i - 1].is_bot:
+            chat_messages[-1].content += "\n" + message.message
+        else:
+            chat_messages.append(HumanMessage(content=message.message))
+
+    # max_tokens = min(max_tokens, user_settings.max_output_tokens)
+    llm = ChatOpenAI()
+    bot_message = Message.objects.create(
+        message=llm(chat_messages).content,
+        chat_id=chat_id,
+        is_bot=True,
+    )
     chat = Chat.objects.get(id=chat_id)
     add_chat_title = False
     # Title the chat and add it to the sidebar if there's sufficient context to do so
     if chat.title == "" and (
         len(messages) > 2
-        or not is_chat_model
         or len(" ".join([m.content for m in chat_messages])) > 300
     ):
         add_chat_title = True
@@ -390,6 +364,11 @@ def query_embeddings(request):
     )
 
 
+# Escape HTML
+def escape_html(text):
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+
+
 def qa_embeddings(request):
     query = request.GET.get("query")
     if query is None:
@@ -397,15 +376,16 @@ def qa_embeddings(request):
     documents_by_summary, chunks_by_embedding = get_docs_chunks_by_embedding(
         request, query, max_distance=0.5
     )
+    print(len(documents_by_summary), len(chunks_by_embedding))
     response = get_qa_response(
         query,
         [
-            LcDocument(page_content=doc.summary, metadata={"source": doc.file.name})
+            LcDocument(page_content=escape_html(doc.summary), metadata={"source": doc.file.name})
             for doc in documents_by_summary
         ]
         + [
             LcDocument(
-                page_content=chunk.text, metadata={"source": chunk.document.file.name}
+                page_content=escape_html(chunk.text), metadata={"source": chunk.document.file.name}
             )
             for chunk in chunks_by_embedding
         ],

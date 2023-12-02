@@ -5,70 +5,26 @@ https://github.com/GoogleCloudPlatform/generative-ai/blob/main/language/examples
 
 import time
 from typing import List
-from pydantic import BaseModel
-from pgvector.django import CosineDistance
 
-from langchain.embeddings import VertexAIEmbeddings
-from langchain.chains.question_answering import load_qa_chain
+from chat.models import Chat, Document, DocumentChunk, Message, User
 from langchain.chains.qa_with_sources import load_qa_with_sources_chain
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.chains.question_answering import load_qa_chain
 from langchain.chains.summarize import load_summarize_chain
-from langchain.chat_models import ChatVertexAI
-from langchain.llms import VertexAI
-
-
-from chat.models import Message, User, Chat, DocumentChunk, Document
-
-
-# Utility functions for Embeddings API with rate limiting
-def rate_limit(max_per_minute):
-    period = 60 / max_per_minute
-    print("Waiting")
-    while True:
-        before = time.time()
-        yield
-        after = time.time()
-        elapsed = after - before
-        sleep_time = max(0, period - elapsed)
-        if sleep_time > 0:
-            print(".", end="")
-            time.sleep(sleep_time)
-
-
-class CustomVertexAIEmbeddings(VertexAIEmbeddings, BaseModel):
-    requests_per_minute: int
-    num_instances_per_batch: int
-
-    # Overriding embed_documents method
-    def embed_documents(self, texts: List[str]):
-        limiter = rate_limit(self.requests_per_minute)
-        results = []
-        docs = list(texts)
-
-        while docs:
-            # Working in batches because the API accepts maximum 5
-            # documents per request to get embeddings
-            head, docs = (
-                docs[: self.num_instances_per_batch],
-                docs[self.num_instances_per_batch :],
-            )
-            chunk = self.client.get_embeddings(head)
-            results.extend(chunk)
-            next(limiter)
-
-        return [r.values for r in results]
-
+from langchain.chat_models import ChatOpenAI
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.llms import OpenAI
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from pgvector.django import CosineDistance
+from pydantic import BaseModel
 
 # Embedding
 EMBEDDING_QPM = 100
 EMBEDDING_NUM_BATCH = 5
-gcp_embeddings = CustomVertexAIEmbeddings(
-    requests_per_minute=EMBEDDING_QPM,
-    num_instances_per_batch=EMBEDDING_NUM_BATCH,
-)
+gcp_embeddings = OpenAIEmbeddings()
 
-text_llm = VertexAI(max_output_tokens=1024)
-summarize_chain = load_summarize_chain(text_llm, chain_type="map_reduce")
+text_llm = OpenAI()
+summarize_llm = OpenAI(model_name='gpt-3.5-turbo-16k')
+summarize_chain = load_summarize_chain(summarize_llm, chain_type="map_reduce")
 CHUNK_SIZE = 2000
 CHUNK_OVERLAP = 200
 text_splitter = RecursiveCharacterTextSplitter(

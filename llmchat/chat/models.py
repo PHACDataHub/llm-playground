@@ -2,9 +2,8 @@
 Models for the LLM chat application
 """
 
-from django.db import models
 from django.contrib.auth.models import User
-
+from django.db import models
 from pgvector.django import VectorField
 
 from llmchat.settings import GS_BUCKET_NAME
@@ -70,8 +69,8 @@ class Document(models.Model):
     title = models.CharField(max_length=255, blank=True, default="")
     original_filename = models.CharField(max_length=255, blank=True, default="")
     summary = models.TextField(blank=True, default="")
-    summary_embedding = VectorField(dimensions=768, null=True)  # PaLM embedding
-    mean_embedding = VectorField(dimensions=768, null=True)  # PaLM embedding
+    summary_embedding = VectorField(dimensions=1536, null=True)  # OpenAI embedding
+    mean_embedding = VectorField(dimensions=1536, null=True)  # OpenAI embedding
     tags = models.ManyToManyField("DocumentTag", related_name="documents")
     chunk_overlap = models.IntegerField(
         default=200
@@ -93,7 +92,7 @@ class DocumentChunk(models.Model):
     )
     chunk_number = models.IntegerField()
     page_number = models.IntegerField(null=True)  # Some document loaders support this
-    embedding = VectorField(dimensions=768, null=True)  # PaLM embedding
+    embedding = VectorField(dimensions=1536, null=True)  # PaLM embedding
     text = models.TextField(blank=True, default="")
 
     def __str__(self):
@@ -111,12 +110,9 @@ class UserSettings(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="settings")
     model_name = models.CharField(
         max_length=255,
-        default="chat-bison",
+        default="gpt-3.5-turbo",
         choices=[
-            ("chat-bison", "Google PaLM chat-bison"),
-            ("codechat-bison", "Google PaLM codechat-bison"),
-            ("text-bison", "Google PaLM text-bison"),
-            ("code-bison", "Google PaLM code-bison"),
+            ("gpt-3.5-turbo", "GPT-3.5-Turbo (default ChatGPT model)"),
         ],
     )
     system_prompt = models.TextField(null=True, blank=True)
